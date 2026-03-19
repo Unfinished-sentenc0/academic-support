@@ -65,8 +65,132 @@ const faqs = [
   { q: "Is the work plagiarism-free?", a: "Every submission is 100% original and Turnitin-clean. We never resell or reuse work." },
 ];
 
+const plans = [
+  { name: "Basic", price: "$5", per: "per page", features: ["Essays & Assignments", "72hr+ deadline", "1 free revision", "Plagiarism-free"], highlight: false },
+  { name: "Standard", price: "$15", per: "per page", features: ["All Basic features", "24hr deadline", "3 free revisions", "Priority support", "Exam prep notes"], highlight: true },
+  { name: "Urgent", price: "$30", per: "per page", features: ["All Standard features", "Under 6hr delivery", "Unlimited revisions", "Dedicated writer", "WhatsApp updates"], highlight: false },
+];
+
 const WHATSAPP_LINK = "https://wa.me/message/H45TAWKQS3QLM1";
 const EMAIL = "hannahessays445@gmail.com";
+
+// ── ORDER MODAL ──
+function OrderModal({ plan, onClose }) {
+  const [form, setForm] = useState({ name: "", email: "", service: "", deadline: "", details: "" });
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // close on backdrop click
+  const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose(); };
+
+  // close on Escape
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await fetch("https://formspree.io/f/xaqpvkrk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, plan }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+        setTimeout(() => { setSubmitted(false); onClose(); }, 3500);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div onClick={handleBackdrop} style={{
+      position: "fixed", inset: 0, zIndex: 1000,
+      background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "20px", animation: "fadeIn 0.25s ease"
+    }}>
+      <div style={{
+        background: "#0e0e1a", border: "1px solid #1c1c2e", width: "100%", maxWidth: 540,
+        maxHeight: "90vh", overflowY: "auto", position: "relative",
+        animation: "slideUp 0.3s ease"
+      }}>
+        {/* gold top bar */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg, #c9a84c, #e8c97a)" }} />
+
+        {/* header */}
+        <div style={{ padding: "32px 32px 24px", borderBottom: "1px solid #14141e", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div className="tag" style={{ marginBottom: 6 }}>
+              {plan === "Basic" ? "🟢" : plan === "Standard" ? "🟡" : "🔴"} {plan} Plan · {plan === "Basic" ? "$5" : plan === "Standard" ? "$15" : "$30"}/page
+            </div>
+            <h3 className="cormorant" style={{ fontSize: "1.7rem", fontWeight: 700 }}>Place Your Order</h3>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.5rem", cursor: "pointer", lineHeight: 1, padding: "4px 8px", transition: "color 0.2s" }}
+            onMouseEnter={e => e.target.style.color = "#c9a84c"}
+            onMouseLeave={e => e.target.style.color = "#555"}
+          >×</button>
+        </div>
+
+        {/* body */}
+        <div style={{ padding: "28px 32px 32px" }}>
+          {submitted ? (
+            <div style={{ textAlign: "center", padding: "40px 0" }}>
+              <div style={{ fontSize: "3.5rem", marginBottom: 16 }}>✅</div>
+              <h3 className="cormorant" style={{ fontSize: "1.8rem", marginBottom: 10 }}>Order Received!</h3>
+              <p className="dm" style={{ color: "#777", fontSize: "0.88rem" }}>We'll be in touch within 10 minutes.</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div>
+                  <label className="dm" style={{ display: "block", fontSize: "0.69rem", color: "#555", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Your Name</label>
+                  <input required placeholder="John Smith" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+                </div>
+                <div>
+                  <label className="dm" style={{ display: "block", fontSize: "0.69rem", color: "#555", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Email</label>
+                  <input required type="email" placeholder="you@email.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label className="dm" style={{ display: "block", fontSize: "0.69rem", color: "#555", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Service Needed</label>
+                <select required value={form.service} onChange={e => setForm({ ...form, service: e.target.value })}>
+                  <option value="">Select a service...</option>
+                  <option>Essay Writing</option>
+                  <option>Assignment Help</option>
+                  <option>Online Classes</option>
+                  <option>Homework</option>
+                  <option>Proctored Exam</option>
+                  <option>Online Exam</option>
+                </select>
+              </div>
+              <div>
+                <label className="dm" style={{ display: "block", fontSize: "0.69rem", color: "#555", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Deadline</label>
+                <input required type="datetime-local" value={form.deadline} onChange={e => setForm({ ...form, deadline: e.target.value })} style={{ colorScheme: "dark" }} />
+              </div>
+              <div>
+                <label className="dm" style={{ display: "block", fontSize: "0.69rem", color: "#555", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Assignment Details</label>
+                <textarea required rows={4} placeholder="Subject, word count, topic, university, any special instructions..." value={form.details} onChange={e => setForm({ ...form, details: e.target.value })} style={{ resize: "vertical" }} />
+              </div>
+              <button type="submit" className="btn-gold" disabled={loading} style={{ marginTop: 4, width: "100%", padding: "15px", fontSize: "0.82rem", opacity: loading ? 0.7 : 1 }}>
+                {loading ? "Sending..." : "Submit Order & Get Quote →"}
+              </button>
+              <p className="dm" style={{ color: "#444", fontSize: "0.72rem", textAlign: "center" }}>🔒 100% confidential · We reply within 10 minutes</p>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [faqOpen, setFaqOpen] = useState(null);
@@ -75,6 +199,7 @@ export default function App() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
+  const [modalPlan, setModalPlan] = useState(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -98,13 +223,7 @@ export default function App() {
       const res = await fetch("https://formspree.io/f/xaqpvkrk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          service: form.service,
-          deadline: form.deadline,
-          details: form.details,
-        }),
+        body: JSON.stringify({ ...form, plan: "From Order Form" }),
       });
       if (res.ok) {
         setSubmitted(true);
@@ -156,6 +275,12 @@ export default function App() {
         .mobile-menu.open { max-height: 500px; }
         .mob-item { padding: 16px 6%; border-bottom: 1px solid #14141e; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; color: #888; cursor: pointer; display: block; }
         .mob-item:hover { color: #c9a84c; }
+        /* modal animations */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        /* pricing card hover */
+        .plan-card { transition: all 0.35s; cursor: default; }
+        .plan-card:hover { transform: translateY(-5px) !important; box-shadow: 0 24px 60px rgba(0,0,0,0.5) !important; }
 
         @media (max-width: 768px) {
           .desktop-nav { display: none !important; }
@@ -172,12 +297,15 @@ export default function App() {
           .order-form-wrap { padding: 28px 20px !important; }
           .footer-inner { flex-direction: column !important; text-align: center !important; }
           .testimonial-box { padding: 32px 22px !important; }
-          section { padding-left: 5% !important; padding-right: 5% !important; }
+          .modal-form-row { grid-template-columns: 1fr !important; }
         }
         @media (max-width: 480px) {
           .how-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
+
+      {/* Modal */}
+      {modalPlan && <OrderModal plan={modalPlan} onClose={() => setModalPlan(null)} />}
 
       <a className="wa-btn" href={WHATSAPP_LINK} target="_blank" rel="noreferrer" title="Chat on WhatsApp">💬</a>
 
@@ -197,7 +325,7 @@ export default function App() {
           {[["Services","services"],["How It Works","how-it-works"],["Reviews","reviews"],["FAQ","faq"]].map(([l,id]) => (
             <span key={id} className="nav-link" onClick={() => scrollTo(id)}>{l}</span>
           ))}
-          <span className="btn-gold" style={{ padding: "10px 20px", fontSize: "0.75rem", cursor: "pointer" }} onClick={() => scrollTo("order")}>Order Now</span>
+          <span className="btn-gold" style={{ padding: "10px 20px", fontSize: "0.75rem", cursor: "pointer" }} onClick={() => setModalPlan("Standard")}>Order Now</span>
         </div>
         <button className="hamburger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
           <span style={{ transform: menuOpen ? "rotate(45deg) translate(5px,5px)" : "none" }} />
@@ -211,7 +339,7 @@ export default function App() {
           <span key={id} className="mob-item" onClick={() => scrollTo(id)}>{l}</span>
         ))}
         <div style={{ padding: "16px 6%" }}>
-          <span className="btn-gold" style={{ display: "block", textAlign: "center", cursor: "pointer", padding: "14px" }} onClick={() => scrollTo("order")}>Order Now</span>
+          <span className="btn-gold" style={{ display: "block", textAlign: "center", cursor: "pointer", padding: "14px" }} onClick={() => { setModalPlan("Standard"); setMenuOpen(false); }}>Order Now</span>
         </div>
       </div>
 
@@ -231,7 +359,7 @@ export default function App() {
                 Assignments • Essays • Research • Editing — delivered on time, every time. A grades guaranteed or your money back.
               </p>
               <div className="hero-btns" style={{ display: "flex", gap: 12, marginBottom: 36, flexWrap: "wrap" }}>
-                <span className="btn-gold" style={{ cursor: "pointer" }} onClick={() => scrollTo("order")}>Request Help Now</span>
+                <span className="btn-gold" style={{ cursor: "pointer" }} onClick={() => setModalPlan("Standard")}>Request Help Now</span>
                 <span className="btn-ghost" style={{ cursor: "pointer" }} onClick={() => scrollTo("services")}>Our Services</span>
               </div>
               <div className="dm" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
@@ -246,7 +374,7 @@ export default function App() {
                 <div className="tag" style={{ marginBottom: 12 }}>Instant Quote</div>
                 <h3 className="cormorant" style={{ fontSize: "1.4rem", fontWeight: 700, marginBottom: 18 }}>What do you need help with?</h3>
                 {["Essay Writing","Assignment Help","Online Exam","Proctored Exam","Online Class","Homework"].map(s => (
-                  <div key={s} onClick={() => scrollTo("order")} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #14141e", cursor: "pointer", color: "#f0ede6", transition: "color 0.2s" }}
+                  <div key={s} onClick={() => setModalPlan("Standard")} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #14141e", cursor: "pointer", color: "#f0ede6", transition: "color 0.2s" }}
                     onMouseEnter={e => e.currentTarget.style.color = "#c9a84c"}
                     onMouseLeave={e => e.currentTarget.style.color = "#f0ede6"}
                   >
@@ -357,13 +485,9 @@ export default function App() {
             <div className="divider" />
           </FadeIn>
           <div className="pricing-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2 }}>
-            {[
-              { name: "Basic", price: "$5", per: "per page", features: ["Essays & Assignments","72hr+ deadline","1 free revision","Plagiarism-free"], highlight: false },
-              { name: "Standard", price: "$15", per: "per page", features: ["All Basic features","24hr deadline","3 free revisions","Priority support","Exam prep notes"], highlight: true },
-              { name: "Urgent", price: "$30", per: "per page", features: ["All Standard features","Under 6hr delivery","Unlimited revisions","Dedicated writer","WhatsApp updates"], highlight: false },
-            ].map((p,i) => (
+            {plans.map((p,i) => (
               <FadeIn key={p.name} delay={i*0.1}>
-                <div style={{ background: p.highlight ? "#10102a" : "#0e0e1a", border: p.highlight ? "1px solid rgba(201,168,76,0.45)" : "1px solid #1c1c2e", padding: "36px 28px", position: "relative" }}>
+                <div className="plan-card" style={{ background: p.highlight ? "#10102a" : "#0e0e1a", border: p.highlight ? "1px solid rgba(201,168,76,0.45)" : "1px solid #1c1c2e", padding: "36px 28px", position: "relative" }}>
                   {p.highlight && <div style={{ position: "absolute", top: -1, left: 28, width: 48, height: 3, background: "#c9a84c" }} />}
                   {p.highlight && <div className="dm" style={{ position: "absolute", top: 14, right: 16, background: "#c9a84c", color: "#07070f", fontSize: "0.64rem", fontWeight: 700, letterSpacing: "0.1em", padding: "4px 8px", textTransform: "uppercase" }}>Most Popular</div>}
                   <div className="tag" style={{ marginBottom: 8 }}>{p.name}</div>
@@ -377,7 +501,10 @@ export default function App() {
                       <span style={{ color: "#c9a84c", flexShrink: 0 }}>✓</span>{f}
                     </div>
                   ))}
-                  <span className="btn-gold" style={{ marginTop: 20, display: "block", textAlign: "center", cursor: "pointer", padding: "12px", fontSize: "0.75rem" }} onClick={() => scrollTo("order")}>Get Started</span>
+                  {/* GET STARTED — opens modal with plan pre-selected */}
+                  <button className="btn-gold" onClick={() => setModalPlan(p.name)} style={{ marginTop: 20, width: "100%", padding: "13px", fontSize: "0.78rem", border: "none" }}>
+                    Get Started →
+                  </button>
                 </div>
               </FadeIn>
             ))}
