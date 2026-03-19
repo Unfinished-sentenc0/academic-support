@@ -94,14 +94,26 @@ export default function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const subject = encodeURIComponent(`New Order: ${form.service}`);
-    const body = encodeURIComponent(
-      `Name: ${form.name}\nEmail: ${form.email}\nService: ${form.service}\nDeadline: ${form.deadline}\n\nDetails:\n${form.details}`
-    );
-    window.open(`mailto:${EMAIL}?subject=${subject}&body=${body}`, "_blank");
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 5000);
-    setForm({ name: "", email: "", service: "", deadline: "", details: "" });
+    try {
+      const res = await fetch("https://formspree.io/f/xaqpvkrk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          service: form.service,
+          deadline: form.deadline,
+          details: form.details,
+        }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+        setTimeout(() => setSubmitted(false), 5000);
+        setForm({ name: "", email: "", service: "", deadline: "", details: "" });
+      }
+    } catch (err) {
+      console.error("Form error:", err);
+    }
   };
 
   return (
