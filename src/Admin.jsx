@@ -3,16 +3,10 @@ import { auth, db } from "./firebase";
 import { signOut } from "firebase/auth";
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
-import emailjs from "@emailjs/browser";
 
 const ADMIN_EMAIL = "hannahessays445@gmail.com";
 const STATUS_STEPS = ["Pending", "Confirmed", "In Progress", "Review", "Delivered"];
 const STATUS_COLORS = { Pending: "#888", Confirmed: "#4a9eff", "In Progress": "#f0a500", Review: "#a855f7", Delivered: "#25d366" };
-
-// EmailJS config
-const EMAILJS_SERVICE = "service_vsdj7kh";
-const EMAILJS_TEMPLATE = "4ntgk6e";
-const EMAILJS_PUBLIC_KEY = "VAHjpD3CvLgaqqCCt";
 
 export default function Admin() {
   const [orders, setOrders] = useState([]);
@@ -49,7 +43,7 @@ export default function Admin() {
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    setTimeout(() => setToast(null), 4000);
   };
 
   const updateStatus = async (orderId, status) => {
@@ -58,27 +52,39 @@ export default function Admin() {
       await updateDoc(doc(db, "orders", orderId), { status });
       if (selectedOrder?.id === orderId) setSelectedOrder(o => ({ ...o, status }));
 
-      // 2. Send email to student via EmailJS
+      // 2. Send email via EmailJS REST API
       const order = orders.find(o => o.id === orderId);
       if (order?.studentEmail) {
         setEmailSending(true);
-        await emailjs.send(
-          EMAILJS_SERVICE,
-          EMAILJS_TEMPLATE,
-          {
-            student_name: order.studentName || "Student",
-            student_email: order.studentEmail,
-            service: order.service,
-            status: status,
-            deadline: order.deadline || "—",
-          },
-          EMAILJS_PUBLIC_KEY
-        );
+        const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            service_id: "service_vsdj7kh",
+            template_id: "4ntgk6e",
+            user_id: "VAHjpD3CvLgaqqCCt",
+            template_params: {
+              student_name: order.studentName || "Student",
+              student_email: order.studentEmail,
+              service: order.service,
+              status: status,
+              deadline: order.deadline || "—",
+            }
+          }),
+        });
+        const text = await res.text();
+        console.log("EmailJS response:", res.status, text);
         setEmailSending(false);
-        showToast(`✅ Status updated to "${status}" — Email sent to ${order.studentEmail}`);
+        if (res.ok) {
+          showToast(`✅ Status updated to "${status}" — Email sent to ${order.studentEmail}`);
+        } else {
+          showToast(`⚠️ Email failed: ${text}`, "error");
+        }
+      } else {
+        showToast(`✅ Status updated to "${status}"`);
       }
     } catch (err) {
-      console.error("Status update error:", err);
+      console.error("Error:", err);
       setEmailSending(false);
       showToast("⚠️ Status updated but email failed", "error");
     }
@@ -118,15 +124,14 @@ export default function Admin() {
         input[type="text"]:focus { border-color: #c9a84c; }
         input[type="text"]::placeholder { color: #444; }
         ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-track { background: #07070f; } ::-webkit-scrollbar-thumb { background: #c9a84c; }
-        /* Toast */
-        .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 9999; font-family: 'DM Sans', sans-serif; font-size: 0.84rem; padding: 12px 24px; border-radius: 0; animation: slideUpToast 0.3s ease; white-space: nowrap; }
+        .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 9999; font-family: 'DM Sans', sans-serif; font-size: 0.84rem; padding: 12px 24px; animation: slideUpToast 0.3s ease; white-space: nowrap; max-width: 90vw; overflow: hidden; text-overflow: ellipsis; }
         .toast.success { background: #0e1a0e; border: 1px solid #25d366; color: #25d366; }
         .toast.error { background: #1a0e0e; border: 1px solid #ff6b6b; color: #ff6b6b; }
         @keyframes slideUpToast { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
         @media (max-width: 900px) { .admin-layout { grid-template-columns: 1fr !important; } }
       `}</style>
 
-      {/* Toast notification */}
+      {/* Toast */}
       {toast && <div className={`toast ${toast.type}`}>{toast.msg}</div>}
 
       {/* Nav */}
@@ -134,13 +139,13 @@ export default function Admin() {
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div className="cormorant" style={{ fontSize: "1.3rem", fontWeight: 700 }}>Academic<span style={{ color: "#c9a84c" }}>Pro</span></div>
           <div className="dm" style={{ background: "rgba(201,168,76,0.1)", border: "1px solid rgba(201,168,76,0.3)", color: "#c9a84c", fontSize: "0.65rem", letterSpacing: "0.15em", textTransform: "uppercase", padding: "4px 10px" }}>Admin</div>
-          {emailSending && <div className="dm" style={{ color: "#888", fontSize: "0.75rem" }}>✉️ Sending email...</div>}
+          {emailSending && <div className="dm" style={{ color: "#888", fontSize: "0.75rem", animation: "pulse 1s infinite" }}>✉️ Sending email...</div>}
         </div>
         <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
           <div className="dm" style={{ display: "flex", gap: 16 }}>
             {[
               { label: "Total", val: orders.length },
-              { label: "Active", val: orders.filter(o => !["Delivered"].includes(o.status)).length },
+              { label: "Active", val: orders.filter(o => o.status !== "Delivered").length },
               { label: "Done", val: orders.filter(o => o.status === "Delivered").length },
             ].map(s => (
               <div key={s.label} style={{ textAlign: "center" }}>
