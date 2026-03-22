@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { db } from "./firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 function useInView(threshold = 0.1) {
   const ref = useRef(null);
@@ -80,10 +82,8 @@ function OrderModal({ plan, onClose }) {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // close on backdrop click
   const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose(); };
 
-  // close on Escape
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -95,15 +95,27 @@ function OrderModal({ plan, onClose }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("https://formspree.io/f/xaqpvkrk", {
+      // 1. Save to Firestore so it appears in student dashboard + admin panel
+      await addDoc(collection(db, "orders"), {
+        studentEmail: form.email,
+        studentName: form.name,
+        service: form.service,
+        deadline: form.deadline,
+        details: form.details,
+        plan: plan,
+        status: "Pending",
+        createdAt: serverTimestamp(),
+      });
+
+      // 2. Also send email notification via Formspree
+      await fetch("https://formspree.io/f/xaqpvkrk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, plan }),
       });
-      if (res.ok) {
-        setSubmitted(true);
-        setTimeout(() => { setSubmitted(false); onClose(); }, 3500);
-      }
+
+      setSubmitted(true);
+      setTimeout(() => { setSubmitted(false); onClose(); }, 3500);
     } catch (err) {
       console.error(err);
     } finally {
@@ -123,10 +135,8 @@ function OrderModal({ plan, onClose }) {
         maxHeight: "90vh", overflowY: "auto", position: "relative",
         animation: "slideUp 0.3s ease"
       }}>
-        {/* gold top bar */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg, #c9a84c, #e8c97a)" }} />
 
-        {/* header */}
         <div style={{ padding: "32px 32px 24px", borderBottom: "1px solid #14141e", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div className="tag" style={{ marginBottom: 6 }}>
@@ -140,13 +150,15 @@ function OrderModal({ plan, onClose }) {
           >×</button>
         </div>
 
-        {/* body */}
         <div style={{ padding: "28px 32px 32px" }}>
           {submitted ? (
             <div style={{ textAlign: "center", padding: "40px 0" }}>
               <div style={{ fontSize: "3.5rem", marginBottom: 16 }}>✅</div>
               <h3 className="cormorant" style={{ fontSize: "1.8rem", marginBottom: 10 }}>Order Received!</h3>
               <p className="dm" style={{ color: "#777", fontSize: "0.88rem" }}>We'll be in touch within 10 minutes.</p>
+              <p className="dm" style={{ color: "#555", fontSize: "0.8rem", marginTop: 8 }}>
+                <a href="/login" style={{ color: "#c9a84c", textDecoration: "none" }}>Sign in to track your order →</a>
+              </p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -220,16 +232,28 @@ export default function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("https://formspree.io/f/xaqpvkrk", {
+      // 1. Save to Firestore
+      await addDoc(collection(db, "orders"), {
+        studentEmail: form.email,
+        studentName: form.name,
+        service: form.service,
+        deadline: form.deadline,
+        details: form.details,
+        plan: "From Order Form",
+        status: "Pending",
+        createdAt: serverTimestamp(),
+      });
+
+      // 2. Send email via Formspree
+      await fetch("https://formspree.io/f/xaqpvkrk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, plan: "From Order Form" }),
       });
-      if (res.ok) {
-        setSubmitted(true);
-        setTimeout(() => setSubmitted(false), 5000);
-        setForm({ name: "", email: "", service: "", deadline: "", details: "" });
-      }
+
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 5000);
+      setForm({ name: "", email: "", service: "", deadline: "", details: "" });
     } catch (err) {
       console.error("Form error:", err);
     }
@@ -275,13 +299,10 @@ export default function App() {
         .mobile-menu.open { max-height: 500px; }
         .mob-item { padding: 16px 6%; border-bottom: 1px solid #14141e; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; color: #888; cursor: pointer; display: block; }
         .mob-item:hover { color: #c9a84c; }
-        /* modal animations */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-        /* pricing card hover */
         .plan-card { transition: all 0.35s; cursor: default; }
         .plan-card:hover { transform: translateY(-5px) !important; box-shadow: 0 24px 60px rgba(0,0,0,0.5) !important; }
-
         @media (max-width: 768px) {
           .desktop-nav { display: none !important; }
           .hamburger { display: flex !important; }
@@ -304,7 +325,6 @@ export default function App() {
         }
       `}</style>
 
-      {/* Modal */}
       {modalPlan && <OrderModal plan={modalPlan} onClose={() => setModalPlan(null)} />}
 
       <a className="wa-btn" href={WHATSAPP_LINK} target="_blank" rel="noreferrer" title="Chat on WhatsApp">💬</a>
@@ -325,6 +345,7 @@ export default function App() {
           {[["Services","services"],["How It Works","how-it-works"],["Reviews","reviews"],["FAQ","faq"]].map(([l,id]) => (
             <span key={id} className="nav-link" onClick={() => scrollTo(id)}>{l}</span>
           ))}
+          <a href="/login" className="nav-link" style={{ color: "#888" }}>Track Order</a>
           <span className="btn-gold" style={{ padding: "10px 20px", fontSize: "0.75rem", cursor: "pointer" }} onClick={() => setModalPlan("Standard")}>Order Now</span>
         </div>
         <button className="hamburger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
@@ -338,6 +359,7 @@ export default function App() {
         {[["Services","services"],["How It Works","how-it-works"],["Reviews","reviews"],["FAQ","faq"]].map(([l,id]) => (
           <span key={id} className="mob-item" onClick={() => scrollTo(id)}>{l}</span>
         ))}
+        <a href="/login" className="mob-item" style={{ color: "#888", textDecoration: "none" }}>Track Order</a>
         <div style={{ padding: "16px 6%" }}>
           <span className="btn-gold" style={{ display: "block", textAlign: "center", cursor: "pointer", padding: "14px" }} onClick={() => { setModalPlan("Standard"); setMenuOpen(false); }}>Order Now</span>
         </div>
@@ -501,7 +523,6 @@ export default function App() {
                       <span style={{ color: "#c9a84c", flexShrink: 0 }}>✓</span>{f}
                     </div>
                   ))}
-                  {/* GET STARTED — opens modal with plan pre-selected */}
                   <button className="btn-gold" onClick={() => setModalPlan(p.name)} style={{ marginTop: 20, width: "100%", padding: "13px", fontSize: "0.78rem", border: "none" }}>
                     Get Started →
                   </button>
@@ -569,6 +590,9 @@ export default function App() {
                   <div style={{ fontSize: "3rem", marginBottom: 14 }}>✅</div>
                   <h3 className="cormorant" style={{ fontSize: "1.6rem", marginBottom: 10 }}>Order Received!</h3>
                   <p className="dm" style={{ color: "#777", fontSize: "0.86rem" }}>We'll be in touch within 10 minutes.</p>
+                  <p className="dm" style={{ color: "#555", fontSize: "0.8rem", marginTop: 10 }}>
+                    <a href="/login" style={{ color: "#c9a84c", textDecoration: "none" }}>Sign in to track your order →</a>
+                  </p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 13 }}>
@@ -621,6 +645,8 @@ export default function App() {
               onMouseEnter={e => e.target.style.color="#c9a84c"} onMouseLeave={e => e.target.style.color="#444"}>Twitter / X</a>
             <a href={WHATSAPP_LINK} target="_blank" rel="noreferrer" className="dm" style={{ color: "#444", fontSize: "0.74rem", textDecoration: "none", transition: "color 0.2s" }}
               onMouseEnter={e => e.target.style.color="#c9a84c"} onMouseLeave={e => e.target.style.color="#444"}>WhatsApp Us</a>
+            <a href="/login" className="dm" style={{ color: "#444", fontSize: "0.74rem", textDecoration: "none", transition: "color 0.2s" }}
+              onMouseEnter={e => e.target.style.color="#c9a84c"} onMouseLeave={e => e.target.style.color="#444"}>Track Order</a>
           </div>
         </div>
       </footer>
