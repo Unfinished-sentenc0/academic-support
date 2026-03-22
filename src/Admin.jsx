@@ -3,10 +3,16 @@ import { auth, db } from "./firebase";
 import { signOut } from "firebase/auth";
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import emailjs from "@emailjs/browser";
 
 const ADMIN_EMAIL = "hannahessays445@gmail.com";
 const STATUS_STEPS = ["Pending", "Confirmed", "In Progress", "Review", "Delivered"];
 const STATUS_COLORS = { Pending: "#888", Confirmed: "#4a9eff", "In Progress": "#f0a500", Review: "#a855f7", Delivered: "#25d366" };
+
+// EmailJS config
+const EMAILJS_SERVICE = "service_vsdj7kh";
+const EMAILJS_TEMPLATE = "4ntgk6e";
+const EMAILJS_PUBLIC_KEY = "VAHjpD3CvLgaqqCCt";
 
 export default function Admin() {
   const [orders, setOrders] = useState([]);
@@ -15,6 +21,8 @@ export default function Admin() {
   const [newMsg, setNewMsg] = useState("");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
+  const [emailSending, setEmailSending] = useState(false);
+  const [toast, setToast] = useState(null);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
   const user = auth.currentUser;
@@ -39,9 +47,41 @@ export default function Admin() {
     return () => unsub();
   }, [selectedOrder]);
 
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
   const updateStatus = async (orderId, status) => {
-    await updateDoc(doc(db, "orders", orderId), { status });
-    if (selectedOrder?.id === orderId) setSelectedOrder(o => ({ ...o, status }));
+    try {
+      // 1. Update Firestore
+      await updateDoc(doc(db, "orders", orderId), { status });
+      if (selectedOrder?.id === orderId) setSelectedOrder(o => ({ ...o, status }));
+
+      // 2. Send email to student via EmailJS
+      const order = orders.find(o => o.id === orderId);
+      if (order?.studentEmail) {
+        setEmailSending(true);
+        await emailjs.send(
+          EMAILJS_SERVICE,
+          EMAILJS_TEMPLATE,
+          {
+            student_name: order.studentName || "Student",
+            student_email: order.studentEmail,
+            service: order.service,
+            status: status,
+            deadline: order.deadline || "—",
+          },
+          EMAILJS_PUBLIC_KEY
+        );
+        setEmailSending(false);
+        showToast(`✅ Status updated to "${status}" — Email sent to ${order.studentEmail}`);
+      }
+    } catch (err) {
+      console.error("Status update error:", err);
+      setEmailSending(false);
+      showToast("⚠️ Status updated but email failed", "error");
+    }
   };
 
   const sendMessage = async (e) => {
@@ -72,24 +112,31 @@ export default function Admin() {
         .order-card::before { content: ''; position: absolute; left: 0; top: 0; width: 3px; height: 0; background: #c9a84c; transition: height 0.3s; }
         .order-card:hover::before, .order-card.active::before { height: 100%; }
         .status-btn { font-family: 'DM Sans', sans-serif; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 7px 12px; border: 1px solid #1c1c2e; background: none; cursor: pointer; transition: all 0.2s; color: #888; }
-        .status-btn:hover, .status-btn.active { color: #07070f; border-color: transparent; }
         .filter-btn { font-family: 'DM Sans', sans-serif; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 14px; border: 1px solid #1c1c2e; background: none; cursor: pointer; transition: all 0.2s; color: #555; }
         .filter-btn.active { border-color: #c9a84c; color: #c9a84c; }
         input[type="text"] { background: #0e0e1a; border: 1px solid #1c1c2e; color: #f0ede6; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; padding: 12px 16px; outline: none; transition: border-color 0.3s; flex: 1; border-radius: 0; width: 100%; box-sizing: border-box; }
         input[type="text"]:focus { border-color: #c9a84c; }
         input[type="text"]::placeholder { color: #444; }
         ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-track { background: #07070f; } ::-webkit-scrollbar-thumb { background: #c9a84c; }
+        /* Toast */
+        .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 9999; font-family: 'DM Sans', sans-serif; font-size: 0.84rem; padding: 12px 24px; border-radius: 0; animation: slideUpToast 0.3s ease; white-space: nowrap; }
+        .toast.success { background: #0e1a0e; border: 1px solid #25d366; color: #25d366; }
+        .toast.error { background: #1a0e0e; border: 1px solid #ff6b6b; color: #ff6b6b; }
+        @keyframes slideUpToast { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
         @media (max-width: 900px) { .admin-layout { grid-template-columns: 1fr !important; } }
       `}</style>
+
+      {/* Toast notification */}
+      {toast && <div className={`toast ${toast.type}`}>{toast.msg}</div>}
 
       {/* Nav */}
       <nav style={{ background: "rgba(7,7,15,0.97)", borderBottom: "1px solid #14141e", padding: "0 4%", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div className="cormorant" style={{ fontSize: "1.3rem", fontWeight: 700 }}>Academic<span style={{ color: "#c9a84c" }}>Pro</span></div>
           <div className="dm" style={{ background: "rgba(201,168,76,0.1)", border: "1px solid rgba(201,168,76,0.3)", color: "#c9a84c", fontSize: "0.65rem", letterSpacing: "0.15em", textTransform: "uppercase", padding: "4px 10px" }}>Admin</div>
+          {emailSending && <div className="dm" style={{ color: "#888", fontSize: "0.75rem" }}>✉️ Sending email...</div>}
         </div>
         <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-          {/* Stats */}
           <div className="dm" style={{ display: "flex", gap: 16 }}>
             {[
               { label: "Total", val: orders.length },
@@ -113,7 +160,6 @@ export default function Admin() {
 
         {/* LEFT — Orders list */}
         <div style={{ borderRight: "1px solid #14141e", overflowY: "auto", maxHeight: "calc(100vh - 64px)" }}>
-          {/* Filter bar */}
           <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #14141e", display: "flex", gap: 6, flexWrap: "wrap" }}>
             {["All", ...STATUS_STEPS].map(f => (
               <button key={f} className={`filter-btn${filter === f ? " active" : ""}`} onClick={() => setFilter(f)}>{f}</button>
@@ -176,12 +222,21 @@ export default function Admin() {
 
                 {/* Status updater */}
                 <div>
-                  <div className="dm" style={{ color: "#555", fontSize: "0.68rem", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 10 }}>Update Status</div>
+                  <div className="dm" style={{ color: "#555", fontSize: "0.68rem", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 10 }}>
+                    Update Status — student will be emailed automatically ✉️
+                  </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {STATUS_STEPS.map(s => (
-                      <button key={s} className={`status-btn${(selectedOrder.status || "Pending") === s ? " active" : ""}`}
+                      <button key={s} className="status-btn"
                         onClick={() => updateStatus(selectedOrder.id, s)}
-                        style={{ background: (selectedOrder.status || "Pending") === s ? STATUS_COLORS[s] : "none", borderColor: STATUS_COLORS[s] + "60", color: (selectedOrder.status || "Pending") === s ? "#07070f" : STATUS_COLORS[s] }}
+                        disabled={emailSending}
+                        style={{
+                          background: (selectedOrder.status || "Pending") === s ? STATUS_COLORS[s] : "none",
+                          borderColor: STATUS_COLORS[s] + "60",
+                          color: (selectedOrder.status || "Pending") === s ? "#07070f" : STATUS_COLORS[s],
+                          opacity: emailSending ? 0.6 : 1,
+                          cursor: emailSending ? "not-allowed" : "pointer"
+                        }}
                       >{s}</button>
                     ))}
                   </div>
