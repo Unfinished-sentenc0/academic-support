@@ -2,6 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import { db } from "./firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
+const TELEGRAM_TOKEN = "8519242390:AAFWYKPWBWKPhshxwHAH5RwMJ9s_0zKX-6Y";
+const TELEGRAM_CHAT_ID = "2058964958";
+
+const sendTelegram = async (text) => {
+  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: "HTML" }),
+  });
+};
+
 function useInView(threshold = 0.1) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
@@ -95,7 +106,7 @@ function OrderModal({ plan, onClose }) {
     e.preventDefault();
     setLoading(true);
     try {
-      // 1. Save to Firestore so it appears in student dashboard + admin panel
+      // 1. Save to Firestore
       await addDoc(collection(db, "orders"), {
         studentEmail: form.email,
         studentName: form.name,
@@ -107,12 +118,17 @@ function OrderModal({ plan, onClose }) {
         createdAt: serverTimestamp(),
       });
 
-      // 2. Also send email notification via Formspree
+      // 2. Send email via Formspree
       await fetch("https://formspree.io/f/xaqpvkrk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, plan }),
       });
+
+      // 3. Telegram notification
+      await sendTelegram(
+        `🔔 <b>New Order!</b>\n\n👤 <b>Name:</b> ${form.name}\n📧 <b>Email:</b> ${form.email}\n📚 <b>Service:</b> ${form.service}\n💰 <b>Plan:</b> ${plan}\n⏰ <b>Deadline:</b> ${form.deadline}\n📝 <b>Details:</b> ${form.details}`
+      );
 
       setSubmitted(true);
       setTimeout(() => { setSubmitted(false); onClose(); }, 3500);
@@ -251,6 +267,11 @@ export default function App() {
         body: JSON.stringify({ ...form, plan: "From Order Form" }),
       });
 
+      // 3. Telegram notification
+      await sendTelegram(
+        `🔔 <b>New Order!</b>\n\n👤 <b>Name:</b> ${form.name}\n📧 <b>Email:</b> ${form.email}\n📚 <b>Service:</b> ${form.service}\n💰 <b>Plan:</b> From Order Form\n⏰ <b>Deadline:</b> ${form.deadline}\n📝 <b>Details:</b> ${form.details}`
+      );
+
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 5000);
       setForm({ name: "", email: "", service: "", deadline: "", details: "" });
@@ -326,7 +347,6 @@ export default function App() {
       `}</style>
 
       {modalPlan && <OrderModal plan={modalPlan} onClose={() => setModalPlan(null)} />}
-
       <a className="wa-btn" href={WHATSAPP_LINK} target="_blank" rel="noreferrer" title="Chat on WhatsApp">💬</a>
 
       {/* NAV */}
@@ -345,7 +365,7 @@ export default function App() {
           {[["Services","services"],["How It Works","how-it-works"],["Reviews","reviews"],["FAQ","faq"]].map(([l,id]) => (
             <span key={id} className="nav-link" onClick={() => scrollTo(id)}>{l}</span>
           ))}
-          <a href="/login" className="nav-link" style={{ color: "#888" }}>Track Order</a>
+          <a href="/login" className="nav-link" style={{ color: "#888", textDecoration: "none" }}>Track Order</a>
           <span className="btn-gold" style={{ padding: "10px 20px", fontSize: "0.75rem", cursor: "pointer" }} onClick={() => setModalPlan("Standard")}>Order Now</span>
         </div>
         <button className="hamburger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
