@@ -19,8 +19,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
-    const q = query(collection(db, "orders"), where("studentEmail", "==", user.email), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q, snap => {
+const q = query(collection(db, "orders"), where("studentEmail", "==", user.email));    const unsub = onSnapshot(q, snap => {
       setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
